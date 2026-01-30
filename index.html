@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Minecraft HTML</title>
+<style>
+  body {
+    margin: 0;
+    background: #87CEEB;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    background: #87CEEB;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const TILE = 32;
+const ROWS = 20;
+const COLS = 40;
+
+// 0 = aire, 1 = tierra, 2 = pasto
+let world = [];
+
+for (let y = 0; y < ROWS; y++) {
+  world[y] = [];
+  for (let x = 0; x < COLS; x++) {
+    if (y > 12) world[y][x] = 1;
+    else if (y === 12) world[y][x] = 2;
+    else world[y][x] = 0;
+  }
+}
+
+let player = {
+  x: 5,
+  y: 5,
+  w: 24,
+  h: 24,
+  color: "red"
+};
+
+const keys = {};
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+canvas.addEventListener("click", e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = Math.floor((e.clientX - rect.left) / TILE);
+  const my = Math.floor((e.clientY - rect.top) / TILE);
+  if (world[my] && world[my][mx] !== undefined) {
+    world[my][mx] = world[my][mx] === 0 ? 1 : 0;
+  }
+});
+
+function update() {
+  if (keys["a"]) player.x -= 0.1;
+  if (keys["d"]) player.x += 0.1;
+  if (keys["w"]) player.y -= 0.1;
+  if (keys["s"]) player.y += 0.1;
+}
+
+function drawWorld() {
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (world[y][x] === 1) ctx.fillStyle = "#8B4513";
+      if (world[y][x] === 2) ctx.fillStyle = "#228B22";
+      if (world[y][x] !== 0) {
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
+  }
+}
+
+function drawPlayer() {
+  ctx.fillStyle = player.color;
+  ctx.fillRect(player.x * TILE, player.y * TILE, player.w, player.h);
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  update();
+  drawWorld();
+  drawPlayer();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
