@@ -2,116 +2,230 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Minecraft HTML 3D</title>
+<title>Minecraft HTML</title>
 <style>
-  body { margin: 0; overflow: hidden; }
-  canvas { display: block; }
+  body { margin: 0; overflow: hidden; background: black; }
+  #hotbar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+  }
+  .slot {
+    width: 40px;
+    height: 40px;
+    border: 2px solid white;
+    background: rgba(0,0,0,.5);
+  }
+  .active {
+    border-color: yellow;
+  }
 </style>
 </head>
 <body>
 
+<div id="hotbar"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
-let scene = new THREE.Scene();
+/* ===================== SETUP ===================== */
+const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
-let camera = new THREE.PerspectiveCamera(
-  75, window.innerWidth / window.innerHeight, 0.1, 1000
+const camera = new THREE.PerspectiveCamera(
+  75, innerWidth / innerHeight, 0.1, 1000
 );
 
-let renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Luz
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(10, 20, 10);
-scene.add(light);
+/* ===================== LIGHT ===================== */
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(50,100,50);
+scene.add(sun);
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-// Player
-camera.position.set(5, 5, 5);
+/* ===================== PLAYER ===================== */
+const player = {
+  pos: new THREE.Vector3(5,5,5),
+  vel: new THREE.Vector3(),
+  onGround: false,
+  height: 1.8,
+  speed: 0.08,
+  jump: 0.35
+};
 
-// Bloques
-const blocks = [];
+/* ===================== BLOCKS ===================== */
 const geometry = new THREE.BoxGeometry(1,1,1);
 const materials = {
   grass: new THREE.MeshLambertMaterial({ color: 0x00aa00 }),
-  dirt: new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+  dirt: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
+  stone: new THREE.MeshLambertMaterial({ color: 0x888888 })
 };
 
-// Mundo plano
-for (let x = 0; x < 20; x++) {
-  for (let z = 0; z < 20; z++) {
-    let block = new THREE.Mesh(geometry, materials.grass);
-    block.position.set(x, 0, z);
-    scene.add(block);
-    blocks.push(block);
+let blocks = [];
+let world = new Map();
+
+function key(x,y,z){ return `${x},${y},${z}` }
+
+function addBlock(x,y,z,type="grass"){
+  if (world.has(key(x,y,z))) return;
+  const mesh = new THREE.Mesh(geometry, materials[type]);
+  mesh.position.set(x,y,z);
+  scene.add(mesh);
+  world.set(key(x,y,z), { mesh, type });
+  blocks.push(mesh);
+}
+
+function removeBlock(x,y,z){
+  const k = key(x,y,z);
+  if (!world.has(k)) return;
+  scene.remove(world.get(k).mesh);
+  blocks.splice(blocks.indexOf(world.get(k).mesh),1);
+  world.delete(k);
+}
+
+/* ===================== GENERATE WORLD ===================== */
+for(let x=0;x<30;x++){
+  for(let z=0;z<30;z++){
+    addBlock(x,0,z,"grass");
+    addBlock(x,-1,z,"dirt");
+    addBlock(x,-2,z,"stone");
   }
 }
 
-// Controles WASD
+/* ===================== CONTROLS ===================== */
 const keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.addEventListener("keydown", e => keys[e.code]=true);
+document.addEventListener("keyup", e => keys[e.code]=false);
 
-// Mouse
-let yaw = 0;
-let pitch = 0;
-document.body.requestPointerLock =
-  document.body.requestPointerLock ||
-  document.body.mozRequestPointerLock;
-
-document.addEventListener("click", () => {
+document.body.addEventListener("click", () => {
   document.body.requestPointerLock();
 });
 
+let yaw=0,pitch=0;
 document.addEventListener("mousemove", e => {
-  if (document.pointerLockElement === document.body) {
-    yaw -= e.movementX * 0.002;
-    pitch -= e.movementY * 0.002;
-    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  if(document.pointerLockElement){
+    yaw -= e.movementX*0.002;
+    pitch -= e.movementY*0.002;
+    pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch));
   }
 });
 
-// Raycaster (romper / poner)
+/* ===================== INVENTORY ===================== */
+const inventory = ["grass","dirt","stone"];
+let selected = 0;
+const hotbar = document.getElementById("hotbar");
+
+inventory.forEach((_,i)=>{
+  const s=document.createElement("div");
+  s.className="slot"+(i===0?" active":"");
+  hotbar.appendChild(s);
+});
+
+document.addEventListener("wheel", e=>{
+  selected=(selected+(e.deltaY>0?1:-1)+inventory.length)%inventory.length;
+  [...hotbar.children].forEach((s,i)=>s.classList.toggle("active",i===selected));
+});
+
+/* ===================== RAYCAST ===================== */
 const raycaster = new THREE.Raycaster();
-document.addEventListener("mousedown", e => {
-  raycaster.setFromCamera({x:0, y:0}, camera);
-  const hit = raycaster.intersectObjects(blocks);
-  if (hit.length > 0) {
-    scene.remove(hit[0].object);
-    blocks.splice(blocks.indexOf(hit[0].object),1);
+
+document.addEventListener("mousedown", e=>{
+  raycaster.setFromCamera({x:0,y:0},camera);
+  const hits = raycaster.intersectObjects(blocks);
+  if(hits.length){
+    const p = hits[0].object.position;
+    if(e.button===0){
+      removeBlock(p.x,p.y,p.z);
+    } else if(e.button===2){
+      const n = hits[0].face.normal;
+      addBlock(p.x+n.x,p.y+n.y,p.z+n.z,inventory[selected]);
+    }
   }
 });
 
-function animate() {
-  requestAnimationFrame(animate);
+/* ===================== PHYSICS ===================== */
+const gravity = 0.02;
 
-  // Movimiento
-  const speed = 0.1;
-  const dir = new THREE.Vector3(
-    Math.sin(yaw), 0, Math.cos(yaw)
-  );
-
-  if (keys["w"]) camera.position.addScaledVector(dir, speed);
-  if (keys["s"]) camera.position.addScaledVector(dir, -speed);
-  if (keys["a"]) camera.position.addScaledVector(
-    new THREE.Vector3(dir.z,0,-dir.x), speed
-  );
-  if (keys["d"]) camera.position.addScaledVector(
-    new THREE.Vector3(-dir.z,0,dir.x), speed
-  );
-
-  camera.rotation.order = "YXZ";
-  camera.rotation.y = yaw;
-  camera.rotation.x = pitch;
-
-  renderer.render(scene, camera);
+function collide(pos){
+  for(let b of world.values()){
+    const p=b.mesh.position;
+    if(
+      Math.abs(pos.x-p.x)<0.5 &&
+      pos.y-p.y<player.height &&
+      pos.y>p.y &&
+      Math.abs(pos.z-p.z)<0.5
+    ){
+      return true;
+    }
+  }
+  return false;
 }
 
+/* ===================== SAVE / LOAD ===================== */
+function saveWorld(){
+  localStorage.setItem("world",[...world.entries()].map(([k,v])=>k+","+v.type).join("|"));
+}
+
+function loadWorld(){
+  const data=localStorage.getItem("world");
+  if(!data) return;
+  world.forEach(v=>scene.remove(v.mesh));
+  world.clear(); blocks=[];
+  data.split("|").forEach(e=>{
+    const [x,y,z,t]=e.split(",");
+    addBlock(+x,+y,+z,t);
+  });
+}
+loadWorld();
+setInterval(saveWorld,5000);
+
+/* ===================== DAY / NIGHT ===================== */
+let time=0;
+
+/* ===================== LOOP ===================== */
+function animate(){
+  requestAnimationFrame(animate);
+
+  time+=0.001;
+  sun.intensity=Math.max(0.2,Math.sin(time)+0.5);
+
+  // movimiento
+  const dir = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+  if(keys["KeyW"]) player.pos.addScaledVector(dir,player.speed);
+  if(keys["KeyS"]) player.pos.addScaledVector(dir,-player.speed);
+  if(keys["KeyA"]) player.pos.addScaledVector(new THREE.Vector3(dir.z,0,-dir.x),player.speed);
+  if(keys["KeyD"]) player.pos.addScaledVector(new THREE.Vector3(-dir.z,0,dir.x),player.speed);
+
+  // salto
+  if(keys["Space"] && player.onGround){
+    player.vel.y=player.jump;
+    player.onGround=false;
+  }
+
+  // gravedad
+  player.vel.y-=gravity;
+  player.pos.y+=player.vel.y;
+
+  if(collide(player.pos)){
+    player.pos.y=Math.floor(player.pos.y)+1;
+    player.vel.y=0;
+    player.onGround=true;
+  }
+
+  camera.position.copy(player.pos);
+  camera.rotation.order="YXZ";
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
+
+  renderer.render(scene,camera);
+}
 animate();
 </script>
-
 </body>
 </html>
+
