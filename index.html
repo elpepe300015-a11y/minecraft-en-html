@@ -2,230 +2,103 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Minecraft HTML</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atrapado - Demo de Backrooms</title>
 <style>
-  body { margin: 0; overflow: hidden; background: black; }
-  #hotbar {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 6px;
-  }
-  .slot {
-    width: 40px;
-    height: 40px;
-    border: 2px solid white;
-    background: rgba(0,0,0,.5);
-  }
-  .active {
-    border-color: yellow;
-  }
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Share Tech Mono', monospace;
+    }
+
+    body {
+        background-color: #f6f58a; /* amarillo Backrooms */
+        background-image: url('https://i.imgur.com/8v1ZnBt.jpg'); /* textura de paredes */
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        color: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        text-align: center;
+        overflow: hidden;
+        animation: slightShake 10s infinite linear;
+    }
+
+    @keyframes slightShake {
+        0% { transform: translate(0px, 0px); }
+        25% { transform: translate(-1px, 1px); }
+        50% { transform: translate(1px, -1px); }
+        75% { transform: translate(-1px, 1px); }
+        100% { transform: translate(0px, 0px); }
+    }
+
+    .container {
+        background-color: rgba(0,0,0,0.7);
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 0 20px #000;
+        max-width: 600px;
+        animation: fadeIn 2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    h1 {
+        font-size: 3rem;
+        margin-bottom: 20px;
+        color: #ffff00;
+        text-shadow: 2px 2px 0 #000;
+    }
+
+    p {
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+        line-height: 1.5;
+        color: #fff;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 15px 30px;
+        font-size: 1.2rem;
+        color: #fff;
+        background-color: #ff0000;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: 0.3s;
+    }
+
+    .btn:hover {
+        background-color: #cc0000;
+        transform: scale(1.05);
+    }
+
+    footer {
+        margin-top: 40px;
+        font-size: 0.9rem;
+        color: #fff;
+        opacity: 0.7;
+    }
 </style>
 </head>
 <body>
-
-<div id="hotbar"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script>
-/* ===================== SETUP ===================== */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-
-const camera = new THREE.PerspectiveCamera(
-  75, innerWidth / innerHeight, 0.1, 1000
-);
-
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-
-/* ===================== LIGHT ===================== */
-const sun = new THREE.DirectionalLight(0xffffff, 1);
-sun.position.set(50,100,50);
-scene.add(sun);
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-
-/* ===================== PLAYER ===================== */
-const player = {
-  pos: new THREE.Vector3(5,5,5),
-  vel: new THREE.Vector3(),
-  onGround: false,
-  height: 1.8,
-  speed: 0.08,
-  jump: 0.35
-};
-
-/* ===================== BLOCKS ===================== */
-const geometry = new THREE.BoxGeometry(1,1,1);
-const materials = {
-  grass: new THREE.MeshLambertMaterial({ color: 0x00aa00 }),
-  dirt: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
-  stone: new THREE.MeshLambertMaterial({ color: 0x888888 })
-};
-
-let blocks = [];
-let world = new Map();
-
-function key(x,y,z){ return `${x},${y},${z}` }
-
-function addBlock(x,y,z,type="grass"){
-  if (world.has(key(x,y,z))) return;
-  const mesh = new THREE.Mesh(geometry, materials[type]);
-  mesh.position.set(x,y,z);
-  scene.add(mesh);
-  world.set(key(x,y,z), { mesh, type });
-  blocks.push(mesh);
-}
-
-function removeBlock(x,y,z){
-  const k = key(x,y,z);
-  if (!world.has(k)) return;
-  scene.remove(world.get(k).mesh);
-  blocks.splice(blocks.indexOf(world.get(k).mesh),1);
-  world.delete(k);
-}
-
-/* ===================== GENERATE WORLD ===================== */
-for(let x=0;x<30;x++){
-  for(let z=0;z<30;z++){
-    addBlock(x,0,z,"grass");
-    addBlock(x,-1,z,"dirt");
-    addBlock(x,-2,z,"stone");
-  }
-}
-
-/* ===================== CONTROLS ===================== */
-const keys = {};
-document.addEventListener("keydown", e => keys[e.code]=true);
-document.addEventListener("keyup", e => keys[e.code]=false);
-
-document.body.addEventListener("click", () => {
-  document.body.requestPointerLock();
-});
-
-let yaw=0,pitch=0;
-document.addEventListener("mousemove", e => {
-  if(document.pointerLockElement){
-    yaw -= e.movementX*0.002;
-    pitch -= e.movementY*0.002;
-    pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch));
-  }
-});
-
-/* ===================== INVENTORY ===================== */
-const inventory = ["grass","dirt","stone"];
-let selected = 0;
-const hotbar = document.getElementById("hotbar");
-
-inventory.forEach((_,i)=>{
-  const s=document.createElement("div");
-  s.className="slot"+(i===0?" active":"");
-  hotbar.appendChild(s);
-});
-
-document.addEventListener("wheel", e=>{
-  selected=(selected+(e.deltaY>0?1:-1)+inventory.length)%inventory.length;
-  [...hotbar.children].forEach((s,i)=>s.classList.toggle("active",i===selected));
-});
-
-/* ===================== RAYCAST ===================== */
-const raycaster = new THREE.Raycaster();
-
-document.addEventListener("mousedown", e=>{
-  raycaster.setFromCamera({x:0,y:0},camera);
-  const hits = raycaster.intersectObjects(blocks);
-  if(hits.length){
-    const p = hits[0].object.position;
-    if(e.button===0){
-      removeBlock(p.x,p.y,p.z);
-    } else if(e.button===2){
-      const n = hits[0].face.normal;
-      addBlock(p.x+n.x,p.y+n.y,p.z+n.z,inventory[selected]);
-    }
-  }
-});
-
-/* ===================== PHYSICS ===================== */
-const gravity = 0.02;
-
-function collide(pos){
-  for(let b of world.values()){
-    const p=b.mesh.position;
-    if(
-      Math.abs(pos.x-p.x)<0.5 &&
-      pos.y-p.y<player.height &&
-      pos.y>p.y &&
-      Math.abs(pos.z-p.z)<0.5
-    ){
-      return true;
-    }
-  }
-  return false;
-}
-
-/* ===================== SAVE / LOAD ===================== */
-function saveWorld(){
-  localStorage.setItem("world",[...world.entries()].map(([k,v])=>k+","+v.type).join("|"));
-}
-
-function loadWorld(){
-  const data=localStorage.getItem("world");
-  if(!data) return;
-  world.forEach(v=>scene.remove(v.mesh));
-  world.clear(); blocks=[];
-  data.split("|").forEach(e=>{
-    const [x,y,z,t]=e.split(",");
-    addBlock(+x,+y,+z,t);
-  });
-}
-loadWorld();
-setInterval(saveWorld,5000);
-
-/* ===================== DAY / NIGHT ===================== */
-let time=0;
-
-/* ===================== LOOP ===================== */
-function animate(){
-  requestAnimationFrame(animate);
-
-  time+=0.001;
-  sun.intensity=Math.max(0.2,Math.sin(time)+0.5);
-
-  // movimiento
-  const dir = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
-  if(keys["KeyW"]) player.pos.addScaledVector(dir,player.speed);
-  if(keys["KeyS"]) player.pos.addScaledVector(dir,-player.speed);
-  if(keys["KeyA"]) player.pos.addScaledVector(new THREE.Vector3(dir.z,0,-dir.x),player.speed);
-  if(keys["KeyD"]) player.pos.addScaledVector(new THREE.Vector3(-dir.z,0,dir.x),player.speed);
-
-  // salto
-  if(keys["Space"] && player.onGround){
-    player.vel.y=player.jump;
-    player.onGround=false;
-  }
-
-  // gravedad
-  player.vel.y-=gravity;
-  player.pos.y+=player.vel.y;
-
-  if(collide(player.pos)){
-    player.pos.y=Math.floor(player.pos.y)+1;
-    player.vel.y=0;
-    player.onGround=true;
-  }
-
-  camera.position.copy(player.pos);
-  camera.rotation.order="YXZ";
-  camera.rotation.y=yaw;
-  camera.rotation.x=pitch;
-
-  renderer.render(scene,camera);
-}
-animate();
-</script>
+    <div class="container">
+        <h1>Atrapado</h1>
+        <p>Te encuentras atrapado en las Backrooms. Pasillos infinitos, luces parpadeantes y algo acechando.  
+        Esta es solo la demo. El juego completo sale en marzo.</p>
+        <a class="btn" href="https://www.roblox.com/games/TU_ID_DE_JUEGO" target="_blank">Jugar en Roblox</a>
+        <footer>Demo disponible temporalmente | Juego completo en marzo</footer>
+    </div>
 </body>
 </html>
-
